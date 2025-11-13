@@ -1,0 +1,1812 @@
+asyncapi: 3.0.0
+info:
+  title: Cascade WebSocket API
+  version: 0.0.1
+  description: |
+    ## Purpose
+    WebSocket API for interacting with Cascade perpetuals clearinghouse.
+
+    ## Protocol
+    This API uses JSON-RPC 2.0 protocol over WebSocket connections.
+
+    All requests must include:
+    - `jsonrpc`: The JSON-RPC version ("2.0")
+    - `method`: The RPC method to call ("auth", "subscribe", "unsubscribe", "create", or "cancel")
+    - `params`: Parameters for the method
+    - `id` (optional): Request identifier for matching responses
+
+    ## Subscription Management
+      - Maximum of 50 concurrent subscriptions per WebSocket connection
+      - Subscribing to the same channel more than once will return an error
+      - Unsubscribing from a channel you're not subscribed to will return an error
+      - Subscriptions are automatically cleaned up when the WebSocket connection closes
+
+    ## Notes
+      - All timestamps are in milliseconds since the Unix epoch (1970-01-01T00:00:00Z).
+      - All decimal values (quantities and prices) use '.' as the decimal separator, regardless of locale.
+      - Authentication is required for position, order, and balance subscriptions, as well as create and cancel operations.
+      - Balance subscriptions support delegation - users can subscribe to accounts they are delegated to access.
+      - Responses include timing metadata: usIn, usOut, and usDiff (in milliseconds).
+      - Streaming data updates (trade, candle, book, order, position, balance) are wrapped with a `type` field for message identification and a `data` field containing the actual payload.
+
+  contact:
+    email: info@perennial.finance
+  license:
+    name: Apache 2.0
+    url: 'http://www.apache.org/licenses/LICENSE-2.0.html'
+
+defaultContentType: application/json
+
+channels:
+  websocket:
+    address: '/ws'
+    description: Primary WebSocket channel for all market data and order management.
+    messages:
+      authRequest:
+        $ref: '#/components/messages/authRequest'
+      authResponse:
+        $ref: '#/components/messages/authResponse'
+      subscribeTradeRequest:
+        $ref: '#/components/messages/subscribeTradeRequest'
+      subscribeBookRequest:
+        $ref: '#/components/messages/subscribeBookRequest'
+      subscribeCandleRequest:
+        $ref: '#/components/messages/subscribeCandleRequest'
+      subscribePositionRequest:
+        $ref: '#/components/messages/subscribePositionRequest'
+      subscribeOrderRequest:
+        $ref: '#/components/messages/subscribeOrderRequest'
+      subscribeBalanceRequest:
+        $ref: '#/components/messages/subscribeBalanceRequest'
+      createOrderRequest:
+        $ref: '#/components/messages/createOrderRequest'
+      createOrderResponse:
+        $ref: '#/components/messages/createOrderResponse'
+      cancelOrderRequest:
+        $ref: '#/components/messages/cancelOrderRequest'
+      cancelOrderResponse:
+        $ref: '#/components/messages/cancelOrderResponse'
+      unsubscribeTradeRequest:
+        $ref: '#/components/messages/unsubscribeTradeRequest'
+      unsubscribeBookRequest:
+        $ref: '#/components/messages/unsubscribeBookRequest'
+      unsubscribeCandleRequest:
+        $ref: '#/components/messages/unsubscribeCandleRequest'
+      unsubscribePositionRequest:
+        $ref: '#/components/messages/unsubscribePositionRequest'
+      unsubscribeOrderRequest:
+        $ref: '#/components/messages/unsubscribeOrderRequest'
+      unsubscribeBalanceRequest:
+        $ref: '#/components/messages/unsubscribeBalanceRequest'
+      subscribeResponse:
+        $ref: '#/components/messages/subscribeResponse'
+      unsubscribeResponse:
+        $ref: '#/components/messages/unsubscribeResponse'
+      errorResponse:
+        $ref: '#/components/messages/errorResponse'
+      bookUpdate:
+        $ref: '#/components/messages/bookUpdate'
+      candle:
+        $ref: '#/components/messages/candle'
+      trade:
+        $ref: '#/components/messages/trade'
+      order:
+        $ref: '#/components/messages/order'
+      position:
+        $ref: '#/components/messages/position'
+      balance:
+        $ref: '#/components/messages/balance'
+
+operations:
+  authenticate:
+    action: receive
+    channel:
+      $ref: '#/channels/websocket'
+    summary: Authenticate the WebSocket connection
+    description: Must be called before accessing protected subscriptions (position, order, createorder, cancelorder)
+    tags:
+      - name: Authentication
+    messages:
+      - $ref: '#/channels/websocket/messages/authRequest'
+    reply:
+      channel:
+        $ref: '#/channels/websocket'
+      messages:
+        - $ref: '#/channels/websocket/messages/authResponse'
+        - $ref: '#/channels/websocket/messages/errorResponse'
+  subscribeTrade:
+    action: receive
+    channel:
+      $ref: '#/channels/websocket'
+    summary: Subscribe to trade/fill notifications for a symbol
+    tags:
+      - name: Market Data
+    messages:
+      - $ref: '#/channels/websocket/messages/subscribeTradeRequest'
+    reply:
+      channel:
+        $ref: '#/channels/websocket'
+      messages:
+        - $ref: '#/channels/websocket/messages/subscribeResponse'
+        - $ref: '#/channels/websocket/messages/trade'
+        - $ref: '#/channels/websocket/messages/errorResponse'
+  subscribeBook:
+    action: receive
+    channel:
+      $ref: '#/channels/websocket'
+    summary: Subscribe to order book updates at specified precision
+    tags:
+      - name: Market Data
+    messages:
+      - $ref: '#/channels/websocket/messages/subscribeBookRequest'
+    reply:
+      channel:
+        $ref: '#/channels/websocket'
+      messages:
+        - $ref: '#/channels/websocket/messages/subscribeResponse'
+        - $ref: '#/channels/websocket/messages/bookUpdate'
+        - $ref: '#/channels/websocket/messages/errorResponse'
+  subscribeCandle:
+    action: receive
+    channel:
+      $ref: '#/channels/websocket'
+    summary: Subscribe to OHLCV candle data at specified interval
+    tags:
+      - name: Market Data
+    messages:
+      - $ref: '#/channels/websocket/messages/subscribeCandleRequest'
+    reply:
+      channel:
+        $ref: '#/channels/websocket'
+      messages:
+        - $ref: '#/channels/websocket/messages/subscribeResponse'
+        - $ref: '#/channels/websocket/messages/candle'
+        - $ref: '#/channels/websocket/messages/errorResponse'
+  subscribePosition:
+    action: receive
+    channel:
+      $ref: '#/channels/websocket'
+    summary: Subscribe to position updates for an account (requires authentication)
+    tags:
+      - name: Account
+    messages:
+      - $ref: '#/channels/websocket/messages/subscribePositionRequest'
+    reply:
+      channel:
+        $ref: '#/channels/websocket'
+      messages:
+        - $ref: '#/channels/websocket/messages/subscribeResponse'
+        - $ref: '#/channels/websocket/messages/position'
+        - $ref: '#/channels/websocket/messages/errorResponse'
+  subscribeOrder:
+    action: receive
+    channel:
+      $ref: '#/channels/websocket'
+    summary: Subscribe to order updates for an account and symbol (requires authentication)
+    tags:
+      - name: Orders
+    messages:
+      - $ref: '#/channels/websocket/messages/subscribeOrderRequest'
+    reply:
+      channel:
+        $ref: '#/channels/websocket'
+      messages:
+        - $ref: '#/channels/websocket/messages/subscribeResponse'
+        - $ref: '#/channels/websocket/messages/order'
+        - $ref: '#/channels/websocket/messages/errorResponse'
+  createOrder:
+    action: receive
+    channel:
+      $ref: '#/channels/websocket'
+    summary: Create a new order (requires authentication)
+    description: Uses the 'create' method with type 'order' to submit a new order to the matching engine
+    tags:
+      - name: Orders
+    messages:
+      - $ref: '#/channels/websocket/messages/createOrderRequest'
+    reply:
+      channel:
+        $ref: '#/channels/websocket'
+      messages:
+        - $ref: '#/channels/websocket/messages/createOrderResponse'
+        - $ref: '#/channels/websocket/messages/errorResponse'
+  cancelOrder:
+    action: receive
+    channel:
+      $ref: '#/channels/websocket'
+    summary: Cancel an existing order (requires authentication)
+    description: Uses the 'cancel' method with type 'order' to cancel an existing order by its order ID
+    tags:
+      - name: Orders
+    messages:
+      - $ref: '#/channels/websocket/messages/cancelOrderRequest'
+    reply:
+      channel:
+        $ref: '#/channels/websocket'
+      messages:
+        - $ref: '#/channels/websocket/messages/cancelOrderResponse'
+        - $ref: '#/channels/websocket/messages/errorResponse'
+  unsubscribeTrade:
+    action: receive
+    channel:
+      $ref: '#/channels/websocket'
+    summary: Unsubscribe from trade notifications
+    description: Stops receiving trade updates for the specified symbol
+    tags:
+      - name: Market Data
+    messages:
+      - $ref: '#/channels/websocket/messages/unsubscribeTradeRequest'
+    reply:
+      channel:
+        $ref: '#/channels/websocket'
+      messages:
+        - $ref: '#/channels/websocket/messages/unsubscribeResponse'
+        - $ref: '#/channels/websocket/messages/errorResponse'
+  unsubscribeBook:
+    action: receive
+    channel:
+      $ref: '#/channels/websocket'
+    summary: Unsubscribe from order book updates
+    description: Stops receiving order book updates for the specified symbol
+    tags:
+      - name: Market Data
+    messages:
+      - $ref: '#/channels/websocket/messages/unsubscribeBookRequest'
+    reply:
+      channel:
+        $ref: '#/channels/websocket'
+      messages:
+        - $ref: '#/channels/websocket/messages/unsubscribeResponse'
+        - $ref: '#/channels/websocket/messages/errorResponse'
+  unsubscribeCandle:
+    action: receive
+    channel:
+      $ref: '#/channels/websocket'
+    summary: Unsubscribe from candle data
+    description: Stops receiving candle data for the specified symbol and interval
+    tags:
+      - name: Market Data
+    messages:
+      - $ref: '#/channels/websocket/messages/unsubscribeCandleRequest'
+    reply:
+      channel:
+        $ref: '#/channels/websocket'
+      messages:
+        - $ref: '#/channels/websocket/messages/unsubscribeResponse'
+        - $ref: '#/channels/websocket/messages/errorResponse'
+  unsubscribePosition:
+    action: receive
+    channel:
+      $ref: '#/channels/websocket'
+    summary: Unsubscribe from position updates (requires authentication)
+    description: Stops receiving position updates for the specified account
+    tags:
+      - name: Account
+    messages:
+      - $ref: '#/channels/websocket/messages/unsubscribePositionRequest'
+    reply:
+      channel:
+        $ref: '#/channels/websocket'
+      messages:
+        - $ref: '#/channels/websocket/messages/unsubscribeResponse'
+        - $ref: '#/channels/websocket/messages/errorResponse'
+  unsubscribeOrder:
+    action: receive
+    channel:
+      $ref: '#/channels/websocket'
+    summary: Unsubscribe from order updates (requires authentication)
+    description: Stops receiving order updates for the specified account and symbol
+    tags:
+      - name: Orders
+    messages:
+      - $ref: '#/channels/websocket/messages/unsubscribeOrderRequest'
+    reply:
+      channel:
+        $ref: '#/channels/websocket'
+      messages:
+        - $ref: '#/channels/websocket/messages/unsubscribeResponse'
+        - $ref: '#/channels/websocket/messages/errorResponse'
+  subscribeBalance:
+    action: receive
+    channel:
+      $ref: '#/channels/websocket'
+    summary: Subscribe to balance updates for an account (requires authentication, supports delegation)
+    description: Subscribe to real-time balance updates for owned or delegated accounts. Can subscribe to all subaccounts or a specific subaccount.
+    tags:
+      - name: Account
+    messages:
+      - $ref: '#/channels/websocket/messages/subscribeBalanceRequest'
+    reply:
+      channel:
+        $ref: '#/channels/websocket'
+      messages:
+        - $ref: '#/channels/websocket/messages/subscribeResponse'
+        - $ref: '#/channels/websocket/messages/balance'
+        - $ref: '#/channels/websocket/messages/errorResponse'
+  unsubscribeBalance:
+    action: receive
+    channel:
+      $ref: '#/channels/websocket'
+    summary: Unsubscribe from balance updates (requires authentication)
+    description: Stops receiving balance updates for the specified account
+    tags:
+      - name: Account
+    messages:
+      - $ref: '#/channels/websocket/messages/unsubscribeBalanceRequest'
+    reply:
+      channel:
+        $ref: '#/channels/websocket'
+      messages:
+        - $ref: '#/channels/websocket/messages/unsubscribeResponse'
+        - $ref: '#/channels/websocket/messages/errorResponse'
+
+components:
+  messages:
+    authRequest:
+      title: authRequest
+      summary: Authenticate the WebSocket connection with JWT token
+      payload:
+        $ref: '#/components/schemas/AuthRequest'
+      examples:
+        - payload:
+            jsonrpc: '2.0'
+            method: 'auth'
+            params:
+              bearer: 'eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9...'
+            id: 1
+    authResponse:
+      title: authResponse
+      summary: Authentication success response
+      payload:
+        $ref: '#/components/schemas/SuccessResponse'
+      examples:
+        - payload:
+            jsonrpc: '2.0'
+            result:
+              message: 'Authenticated successfully'
+            usIn: 1234567890123
+            usOut: 1234567890456
+            usDiff: 333
+            id: 1
+    subscribeTradeRequest:
+      title: subscribeTradeRequest
+      summary: Request to subscribe to trade/fill notifications
+      payload:
+        $ref: '#/components/schemas/SubscribeTradeRequest'
+      examples:
+        - payload:
+            jsonrpc: '2.0'
+            method: 'subscribe'
+            params:
+              source: 'trade'
+              symbol: 'ETH'
+            id: 2
+    subscribeBookRequest:
+      title: subscribeBookRequest
+      summary: Request to subscribe to order book updates
+      payload:
+        $ref: '#/components/schemas/SubscribeBookRequest'
+      examples:
+        - payload:
+            jsonrpc: '2.0'
+            method: 'subscribe'
+            params:
+              source: 'book'
+              symbol: 'SOL'
+              tick_size: 0.01
+            id: 3
+    subscribeCandleRequest:
+      title: subscribeCandleRequest
+      summary: Request to subscribe to OHLCV candle data
+      payload:
+        $ref: '#/components/schemas/SubscribeCandleRequest'
+      examples:
+        - payload:
+            jsonrpc: '2.0'
+            method: 'subscribe'
+            params:
+              source: 'candle'
+              symbol: 'ETH'
+              interval: '1m'
+            id: 4
+    subscribePositionRequest:
+      title: subscribePositionRequest
+      summary: Request to subscribe to position updates (requires authentication)
+      payload:
+        $ref: '#/components/schemas/SubscribePositionRequest'
+      examples:
+        - payload:
+            jsonrpc: '2.0'
+            method: 'subscribe'
+            params:
+              source: 'position'
+              account: '0xe1c03ec3bcf509b3e8e63abcd03edc661ffe6a78'
+            id: 5
+    subscribeOrderRequest:
+      title: subscribeOrderRequest
+      summary: Request to subscribe to order updates (requires authentication)
+      payload:
+        $ref: '#/components/schemas/SubscribeOrderRequest'
+      examples:
+        - payload:
+            jsonrpc: '2.0'
+            method: 'subscribe'
+            params:
+              source: 'order'
+              account: '0xe1c03ec3bcf509b3e8e63abcd03edc661ffe6a78'
+              symbol: 'BTC'
+            id: 6
+    subscribeBalanceRequest:
+      title: subscribeBalanceRequest
+      summary: Request to subscribe to balance updates (requires authentication, supports delegation)
+      payload:
+        $ref: '#/components/schemas/SubscribeBalanceRequest'
+      examples:
+        - payload:
+            jsonrpc: '2.0'
+            method: 'subscribe'
+            params:
+              source: 'balance'
+              account: '0xe1c03ec3bcf509b3e8e63abcd03edc661ffe6a78'
+            id: 7
+        - payload:
+            jsonrpc: '2.0'
+            method: 'subscribe'
+            params:
+              source: 'balance'
+              account: '0xe1c03ec3bcf509b3e8e63abcd03edc661ffe6a78'
+              subaccount_indices: [0]
+            id: 8
+        - payload:
+            jsonrpc: '2.0'
+            method: 'subscribe'
+            params:
+              source: 'balance'
+              account: '0xe1c03ec3bcf509b3e8e63abcd03edc661ffe6a78'
+              subaccount_indices: [2, 5, 7]
+            id: 9
+    createOrderRequest:
+      title: createOrderRequest
+      summary: Request to create a new order (requires authentication)
+      payload:
+        $ref: '#/components/schemas/CreateOrderRequest'
+      examples:
+        - payload:
+            jsonrpc: '2.0'
+            method: 'create'
+            params:
+              type: 'order'
+              order:
+                account: '0xe1c03ec3bcf509b3e8e63abcd03edc661ffe6a78'
+                clientId: 'order-12345'
+                quantity: '1.5'
+                expiresAt: 1968686299000
+                symbol: 'ETH'
+                subaccountIndex: '0'
+                nonce: 387
+                price: '2511.12'
+                flags:
+                  reduceOnly: false
+                  postOnly: true
+                  ioc: false
+                  selfTradeExpire: null
+                signature: '0x587244e256b155471bbb11d69edc1f039205411bf29e39209c6862e87735beb2...'
+                originator: '0x0000000000000000000000000000000000000000'
+                originatorFee: 0
+            id: 7
+    cancelOrderRequest:
+      title: cancelOrderRequest
+      summary: Request to cancel an existing order (requires authentication)
+      payload:
+        $ref: '#/components/schemas/CancelOrderRequest'
+      examples:
+        - payload:
+            jsonrpc: '2.0'
+            method: 'cancel'
+            params:
+              type: 'order'
+              order_id: 'a6e139432b47a2dece7734777fc6df8cab8a6a933daa26821c9185020f7f6a10'
+            id: 8
+    subscribeResponse:
+      title: subscribeResponse
+      summary: Generic success response for subscription requests
+      payload:
+        $ref: '#/components/schemas/SuccessResponse'
+      examples:
+        - payload:
+            jsonrpc: '2.0'
+            result:
+              message: 'Subscribed to trades'
+            usIn: 1234567890123
+            usOut: 1234567890456
+            usDiff: 333
+            id: 2
+    unsubscribeTradeRequest:
+      title: unsubscribeTradeRequest
+      summary: Request to unsubscribe from trade notifications
+      payload:
+        $ref: '#/components/schemas/UnsubscribeTradeRequest'
+      examples:
+        - payload:
+            jsonrpc: '2.0'
+            method: 'unsubscribe'
+            params:
+              source: 'trade'
+              symbol: 'ETH'
+            id: 10
+    unsubscribeBookRequest:
+      title: unsubscribeBookRequest
+      summary: Request to unsubscribe from order book updates
+      payload:
+        $ref: '#/components/schemas/UnsubscribeBookRequest'
+      examples:
+        - payload:
+            jsonrpc: '2.0'
+            method: 'unsubscribe'
+            params:
+              source: 'book'
+              symbol: 'SOL'
+              tick_size: 0.01
+            id: 11
+    unsubscribeCandleRequest:
+      title: unsubscribeCandleRequest
+      summary: Request to unsubscribe from candle data
+      payload:
+        $ref: '#/components/schemas/UnsubscribeCandleRequest'
+      examples:
+        - payload:
+            jsonrpc: '2.0'
+            method: 'unsubscribe'
+            params:
+              source: 'candle'
+              symbol: 'BTC'
+              interval: '1m'
+            id: 12
+    unsubscribePositionRequest:
+      title: unsubscribePositionRequest
+      summary: Request to unsubscribe from position updates
+      payload:
+        $ref: '#/components/schemas/UnsubscribePositionRequest'
+      examples:
+        - payload:
+            jsonrpc: '2.0'
+            method: 'unsubscribe'
+            params:
+              source: 'position'
+              account: '0xe1c03ec3bcf509b3e8e63abcd03edc661ffe6a78'
+            id: 13
+    unsubscribeOrderRequest:
+      title: unsubscribeOrderRequest
+      summary: Request to unsubscribe from order updates
+      payload:
+        $ref: '#/components/schemas/UnsubscribeOrderRequest'
+      examples:
+        - payload:
+            jsonrpc: '2.0'
+            method: 'unsubscribe'
+            params:
+              source: 'order'
+              account: '0xe1c03ec3bcf509b3e8e63abcd03edc661ffe6a78'
+              symbol: 'BTC'
+            id: 14
+    unsubscribeBalanceRequest:
+      title: unsubscribeBalanceRequest
+      summary: Request to unsubscribe from balance updates
+      payload:
+        $ref: '#/components/schemas/UnsubscribeBalanceRequest'
+      examples:
+        - payload:
+            jsonrpc: '2.0'
+            method: 'unsubscribe'
+            params:
+              source: 'balance'
+              account: '0xe1c03ec3bcf509b3e8e63abcd03edc661ffe6a78'
+            id: 15
+        - payload:
+            jsonrpc: '2.0'
+            method: 'unsubscribe'
+            params:
+              source: 'balance'
+              account: '0xe1c03ec3bcf509b3e8e63abcd03edc661ffe6a78'
+              subaccount_indices: [0]
+            id: 16
+        - payload:
+            jsonrpc: '2.0'
+            method: 'unsubscribe'
+            params:
+              source: 'balance'
+              account: '0xe1c03ec3bcf509b3e8e63abcd03edc661ffe6a78'
+              subaccount_indices: [2, 5, 7]
+            id: 17
+    unsubscribeResponse:
+      title: unsubscribeResponse
+      summary: Success response for unsubscribe requests
+      payload:
+        $ref: '#/components/schemas/SuccessResponse'
+      examples:
+        - payload:
+            jsonrpc: '2.0'
+            result:
+              message: 'Unsubscribed from channel'
+            usIn: 1234567890123
+            usOut: 1234567890456
+            usDiff: 333
+            id: 10
+    createOrderResponse:
+      title: createOrderResponse
+      summary: Success response for create order requests
+      payload:
+        $ref: '#/components/schemas/SuccessResponse'
+      examples:
+        - payload:
+            jsonrpc: '2.0'
+            result:
+              message: 'Order created successfully'
+            usIn: 1234567890123
+            usOut: 1234567890456
+            usDiff: 333
+            id: 7
+    cancelOrderResponse:
+      title: cancelOrderResponse
+      summary: Success response for cancel order requests
+      payload:
+        $ref: '#/components/schemas/SuccessResponse'
+      examples:
+        - payload:
+            jsonrpc: '2.0'
+            result:
+              message: 'Order cancelled successfully'
+            usIn: 1234567890123
+            usOut: 1234567890456
+            usDiff: 333
+            id: 8
+    errorResponse:
+      title: errorResponse
+      summary: Error response for failed requests
+      payload:
+        $ref: '#/components/schemas/ErrorResponse'
+      examples:
+        - payload:
+            jsonrpc: '2.0'
+            error:
+              code: -32602
+              message: 'Invalid subscription params'
+            usIn: 1234567890123
+            usOut: 1234567890456
+            usDiff: 333
+            id: 2
+    bookUpdate:
+      title: bookUpdate
+      summary: Order book update notification
+      description: Published on subscription with initial snapshot, then delta updates on changes. Wrapped with type field to identify the message type.
+      payload:
+        $ref: '#/components/schemas/BookUpdate'
+      examples:
+        - payload:
+            type: 'Book Snapshot'
+            data:
+              feed_id: '1'
+              tick_size: '10000'
+              bids:
+                - price: '150.371000'
+                  quantity: '0.581222'
+                - price: '150.370000'
+                  quantity: '0.250000'
+              asks:
+                - price: '150.372000'
+                  quantity: '0.450000'
+                - price: '150.373000'
+                  quantity: '0.333334'
+              time: 1752798506000
+
+        - payload:
+            type: 'Book Delta'
+            data:
+              feed_id: '1'
+              tick_size: '10000'
+              bids:
+                - price: '150.371000'
+                  quantity: '0.581222'
+                - price: '150.370000'
+                  quantity: '0.250000'
+              asks:
+                - price: '150.372000'
+                  quantity: '0.450000'
+                - price: '150.373000'
+                  quantity: '0.333334'
+              time: 1752798506000
+    candle:
+      title: candle
+      summary: OHLCV candle data notification
+      description: Published once per interval for the subscribed symbol and interval. Wrapped with type field to identify the message type.
+      payload:
+        $ref: '#/components/schemas/Candle'
+      examples:
+        - payload:
+            type: 'Candle Update'
+            data:
+              symbol: 'ETH'
+              open: '2498.123470'
+              high: '2532.678942'
+              low: '2487.234511'
+              close: '2517.982130'
+              volume: '987.543290'
+              time: 1751932800000
+    trade:
+      title: trade
+      summary: Trade/fill notification
+      description: Published each time a fill occurs in the specified market. Wrapped with type field to identify the message type.
+      payload:
+        $ref: '#/components/schemas/Trade'
+      examples:
+        - payload:
+            type: 'Trade'
+            data:
+              symbol: 'BTC'
+              price: '106012.450000'
+              quantity: '0.050000'
+              time: 1751793781000
+    order:
+      title: order
+      summary: Order update notification
+      description: Published each time an order is created, updated, filled, or cancelled for the subscribed account and symbol. Wrapped with type field to identify the message type.
+      payload:
+        $ref: '#/components/schemas/Order'
+      examples:
+        - payload:
+            type: 'Order'
+            data:
+              account: '0xc2cbbb5bea8fdefb1f441feaf017a0df72e89c9f'
+              orderId: 'a6e139432b47a2dece7734777fc6df8cab8a6a933daa26821c9185020f7f6a10'
+              clientId: '20250709-3481323'
+              quantity: '-0.5'
+              expiresAt: 1968707400000
+              symbol: 'BTC'
+              subaccountIndex: '0'
+              nonce: 388
+              price: '109912.25'
+              status: 'filled'
+              remaining: '0'
+              settled: '0.5'
+              createdAt: 1720615381000
+              updatedAt: 1720620000000
+    position:
+      title: position
+      summary: Position update notification
+      description: Published each time a position is created or updated for the subscribed account. Wrapped with type field to identify the message type.
+      payload:
+        $ref: '#/components/schemas/Position'
+      examples:
+        - payload:
+            type: 'Position'
+            data:
+              account: '0xc2cbbb5bea8fdefb1f441feaf017a0df72e89c9f'
+              subaccountIndex: '0'
+              symbol: 'ETH'
+              quantity: '1.5'
+              basis: '3720.226'
+              fees: '1.323667'
+              funding: '87.382478'
+              margin: '558.621108'
+              updatedAt: 1752846925000
+    balance:
+      title: balance
+      summary: Balance update notification
+      description: Published each time an account balance is created or updated for the subscribed account. Supports delegation - users can receive updates for accounts they are delegated to access. Wrapped with type field to identify the message type.
+      payload:
+        $ref: '#/components/schemas/Balance'
+      examples:
+        - payload:
+            type: 'Balance Update'
+            data:
+              account: '0xc2cbbb5bea8fdefb1f441feaf017a0df72e89c9f'
+              subaccountIndex: 0
+              balance: '1000.500000'
+              updatedAt: 1752846925000
+
+  schemas:
+    # JSON-RPC 2.0 Base Structures
+    AuthRequest:
+      type: object
+      required:
+        - jsonrpc
+        - method
+        - params
+      properties:
+        jsonrpc:
+          type: string
+          enum: ['2.0']
+          description: JSON-RPC version, must be '2.0'
+        method:
+          type: string
+          enum: ['auth']
+          description: Must be 'auth'
+        params:
+          type: object
+          required:
+            - bearer
+          properties:
+            bearer:
+              type: string
+              description: JWT authentication token
+        id:
+          oneOf:
+            - type: string
+            - type: integer
+            - type: 'null'
+          description: Optional request identifier for matching responses (string, number, or null per JSON-RPC 2.0)
+    SubscribeTradeRequest:
+      type: object
+      required:
+        - jsonrpc
+        - method
+        - params
+      properties:
+        jsonrpc:
+          type: string
+          enum: ['2.0']
+          description: JSON-RPC version, must be '2.0'
+        method:
+          type: string
+          enum: ['subscribe']
+          description: Must be 'subscribe'
+        params:
+          type: object
+          required:
+            - source
+            - symbol
+          properties:
+            source:
+              type: string
+              enum: ['trade']
+              description: Must be 'trade'
+            symbol:
+              type: string
+              description: Market symbol to subscribe to (e.g., 'BTC', 'ETH', 'SOL') or 'ALL' for all markets
+        id:
+          oneOf:
+            - type: string
+            - type: integer
+            - type: 'null'
+          description: Optional request identifier for matching responses (string, number, or null per JSON-RPC 2.0)
+    SubscribeBookRequest:
+      type: object
+      required:
+        - jsonrpc
+        - method
+        - params
+      properties:
+        jsonrpc:
+          type: string
+          enum: ['2.0']
+          description: JSON-RPC version, must be '2.0'
+        method:
+          type: string
+          enum: ['subscribe']
+          description: Must be 'subscribe'
+        params:
+          type: object
+          required:
+            - source
+            - symbol
+            - tick_size
+          properties:
+            source:
+              type: string
+              enum: ['book']
+              description: Must be 'book'
+            symbol:
+              type: string
+              description: Market symbol for which order book data is desired
+            tick_size:
+              type: number
+              description: Optional price tick size for order aggregation (e.g., 0.01, 0.02, 0.05). Must be base_tick_size * multiplier (1x, 2x, 5x, 10x, 100x, 1000x). Defaults to 0.01 if not specified.
+        id:
+          oneOf:
+            - type: string
+            - type: integer
+            - type: 'null'
+          description: Optional request identifier for matching responses (string, number, or null per JSON-RPC 2.0)
+    SubscribeCandleRequest:
+      type: object
+      required:
+        - jsonrpc
+        - method
+        - params
+      properties:
+        jsonrpc:
+          type: string
+          enum: ['2.0']
+          description: JSON-RPC version, must be '2.0'
+        method:
+          type: string
+          enum: ['subscribe']
+          description: Must be 'subscribe'
+        params:
+          type: object
+          required:
+            - source
+            - symbol
+            - interval
+          properties:
+            source:
+              type: string
+              enum: ['candle']
+              description: Must be 'candle'
+            symbol:
+              type: string
+              description: Market symbol for which OHLCV data is desired
+            interval:
+              type: string
+              description: Candle interval - accepts either string format or seconds
+              enum: ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '8h', '12h', '1d', '60', '180', '300', '900', '1800', '3600', '7200', '14400', '28800', '43200', '86400']
+        id:
+          oneOf:
+            - type: string
+            - type: integer
+            - type: 'null'
+          description: Optional request identifier for matching responses (string, number, or null per JSON-RPC 2.0)
+    SubscribePositionRequest:
+      type: object
+      required:
+        - jsonrpc
+        - method
+        - params
+      properties:
+        jsonrpc:
+          type: string
+          enum: ['2.0']
+          description: JSON-RPC version, must be '2.0'
+        method:
+          type: string
+          enum: ['subscribe']
+          description: Must be 'subscribe'
+        params:
+          type: object
+          required:
+            - source
+            - account
+          properties:
+            source:
+              type: string
+              enum: ['position']
+              description: Must be 'position'
+            account:
+              type: string
+              description: Ethereum address of the account (must match authenticated user)
+        id:
+          oneOf:
+            - type: string
+            - type: integer
+            - type: 'null'
+          description: Optional request identifier for matching responses (string, number, or null per JSON-RPC 2.0)
+    SubscribeOrderRequest:
+      type: object
+      required:
+        - jsonrpc
+        - method
+        - params
+      properties:
+        jsonrpc:
+          type: string
+          enum: ['2.0']
+          description: JSON-RPC version, must be '2.0'
+        method:
+          type: string
+          enum: ['subscribe']
+          description: Must be 'subscribe'
+        params:
+          type: object
+          required:
+            - source
+            - account
+            - symbol
+          properties:
+            source:
+              type: string
+              enum: ['order']
+              description: Must be 'order'
+            account:
+              type: string
+              description: Ethereum address of the account (must match authenticated user)
+            symbol:
+              type: string
+              description: Market symbol to filter orders
+        id:
+          oneOf:
+            - type: string
+            - type: integer
+            - type: 'null'
+          description: Optional request identifier for matching responses (string, number, or null per JSON-RPC 2.0)
+    CreateOrderRequest:
+      type: object
+      required:
+        - jsonrpc
+        - method
+        - params
+      properties:
+        jsonrpc:
+          type: string
+          enum: ['2.0']
+          description: JSON-RPC version, must be '2.0'
+        method:
+          type: string
+          enum: ['create']
+          description: Must be 'create'
+        params:
+          type: object
+          required:
+            - type
+            - order
+          properties:
+            type:
+              type: string
+              enum: ['order']
+              description: Must be 'order'
+            order:
+              $ref: '#/components/schemas/OrderParams'
+        id:
+          oneOf:
+            - type: string
+            - type: integer
+            - type: 'null'
+          description: Optional request identifier for matching responses (string, number, or null per JSON-RPC 2.0)
+    CancelOrderRequest:
+      type: object
+      required:
+        - jsonrpc
+        - method
+        - params
+      properties:
+        jsonrpc:
+          type: string
+          enum: ['2.0']
+          description: JSON-RPC version, must be '2.0'
+        method:
+          type: string
+          enum: ['cancel']
+          description: Must be 'cancel'
+        params:
+          type: object
+          required:
+            - type
+            - order_id
+          properties:
+            type:
+              type: string
+              enum: ['order']
+              description: Must be 'order'
+            order_id:
+              type: string
+              description: 64-character hex string identifying the order to cancel
+        id:
+          oneOf:
+            - type: string
+            - type: integer
+            - type: 'null'
+          description: Optional request identifier for matching responses (string, number, or null per JSON-RPC 2.0)
+    UnsubscribeTradeRequest:
+      type: object
+      required:
+        - jsonrpc
+        - method
+        - params
+      properties:
+        jsonrpc:
+          type: string
+          enum: ['2.0']
+          description: JSON-RPC version, must be '2.0'
+        method:
+          type: string
+          enum: ['unsubscribe']
+          description: Must be 'unsubscribe'
+        params:
+          type: object
+          required:
+            - source
+            - symbol
+          properties:
+            source:
+              type: string
+              enum: ['trade']
+              description: Must be 'trade'
+            symbol:
+              type: string
+              description: Market symbol to unsubscribe from
+        id:
+          oneOf:
+            - type: string
+            - type: integer
+            - type: 'null'
+          description: Optional request identifier for matching responses (string, number, or null per JSON-RPC 2.0)
+    UnsubscribeBookRequest:
+      type: object
+      required:
+        - jsonrpc
+        - method
+        - params
+      properties:
+        jsonrpc:
+          type: string
+          enum: ['2.0']
+          description: JSON-RPC version, must be '2.0'
+        method:
+          type: string
+          enum: ['unsubscribe']
+          description: Must be 'unsubscribe'
+        params:
+          type: object
+          required:
+            - source
+            - symbol
+          properties:
+            source:
+              type: string
+              enum: ['book']
+              description: Must be 'book'
+            symbol:
+              type: string
+              description: Market symbol to unsubscribe from
+            tick_size:
+              type: number
+              description: Optional tick size (must match subscription if provided)
+        id:
+          oneOf:
+            - type: string
+            - type: integer
+            - type: 'null'
+          description: Optional request identifier for matching responses (string, number, or null per JSON-RPC 2.0)
+    UnsubscribeCandleRequest:
+      type: object
+      required:
+        - jsonrpc
+        - method
+        - params
+      properties:
+        jsonrpc:
+          type: string
+          enum: ['2.0']
+          description: JSON-RPC version, must be '2.0'
+        method:
+          type: string
+          enum: ['unsubscribe']
+          description: Must be 'unsubscribe'
+        params:
+          type: object
+          required:
+            - source
+            - symbol
+            - interval
+          properties:
+            source:
+              type: string
+              enum: ['candle']
+              description: Must be 'candle'
+            symbol:
+              type: string
+              description: Market symbol to unsubscribe from
+            interval:
+              type: string
+              description: Candle interval - accepts either string format or seconds
+              enum: ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '8h', '12h', '1d', '60', '180', '300', '900', '1800', '3600', '7200', '14400', '28800', '43200', '86400']
+        id:
+          oneOf:
+            - type: string
+            - type: integer
+            - type: 'null'
+          description: Optional request identifier for matching responses (string, number, or null per JSON-RPC 2.0)
+    UnsubscribePositionRequest:
+      type: object
+      required:
+        - jsonrpc
+        - method
+        - params
+      properties:
+        jsonrpc:
+          type: string
+          enum: ['2.0']
+          description: JSON-RPC version, must be '2.0'
+        method:
+          type: string
+          enum: ['unsubscribe']
+          description: Must be 'unsubscribe'
+        params:
+          type: object
+          required:
+            - source
+            - account
+          properties:
+            source:
+              type: string
+              enum: ['position']
+              description: Must be 'position'
+            account:
+              type: string
+              description: Ethereum address of the account (must match authenticated user)
+        id:
+          oneOf:
+            - type: string
+            - type: integer
+            - type: 'null'
+          description: Optional request identifier for matching responses (string, number, or null per JSON-RPC 2.0)
+    UnsubscribeOrderRequest:
+      type: object
+      required:
+        - jsonrpc
+        - method
+        - params
+      properties:
+        jsonrpc:
+          type: string
+          enum: ['2.0']
+          description: JSON-RPC version, must be '2.0'
+        method:
+          type: string
+          enum: ['unsubscribe']
+          description: Must be 'unsubscribe'
+        params:
+          type: object
+          required:
+            - source
+            - account
+            - symbol
+          properties:
+            source:
+              type: string
+              enum: ['order']
+              description: Must be 'order'
+            account:
+              type: string
+              description: Ethereum address of the account (must match authenticated user)
+            symbol:
+              type: string
+              description: Market symbol to unsubscribe from
+        id:
+          oneOf:
+            - type: string
+            - type: integer
+            - type: 'null'
+          description: Optional request identifier for matching responses (string, number, or null per JSON-RPC 2.0)
+    SubscribeBalanceRequest:
+      type: object
+      required:
+        - jsonrpc
+        - method
+        - params
+      properties:
+        jsonrpc:
+          type: string
+          enum: ['2.0']
+          description: JSON-RPC version, must be '2.0'
+        method:
+          type: string
+          enum: ['subscribe']
+          description: Must be 'subscribe'
+        params:
+          type: object
+          required:
+            - source
+            - account
+          properties:
+            source:
+              type: string
+              enum: ['balance']
+              description: Must be 'balance'
+            account:
+              type: string
+              description: Ethereum address of the account (must match authenticated user or user must be a delegate)
+            subaccount_indices:
+              type: array
+              items:
+                type: integer
+              description: |
+                Optional array of subaccount indices.
+                - If OMITTED or EMPTY: Subscribes to ALL subaccounts (owner only - delegation not allowed)
+                - If PROVIDED: Subscribes to specified subaccounts (delegation allowed)
+                
+                For delegated access, delegation is checked for ALL specified subaccounts.
+                Subscription fails if user lacks delegation for any subaccount in the array.
+              examples:
+                - [0]
+                - [2]
+                - [2, 5, 7]
+        id:
+          oneOf:
+            - type: string
+            - type: integer
+            - type: 'null'
+          description: Optional request identifier for matching responses (string, number, or null per JSON-RPC 2.0)
+    UnsubscribeBalanceRequest:
+      type: object
+      required:
+        - jsonrpc
+        - method
+        - params
+      properties:
+        jsonrpc:
+          type: string
+          enum: ['2.0']
+          description: JSON-RPC version, must be '2.0'
+        method:
+          type: string
+          enum: ['unsubscribe']
+          description: Must be 'unsubscribe'
+        params:
+          type: object
+          required:
+            - source
+            - account
+          properties:
+            source:
+              type: string
+              enum: ['balance']
+              description: Must be 'balance'
+            account:
+              type: string
+              description: Ethereum address of the account (must match subscription)
+            subaccount_indices:
+              type: array
+              items:
+                type: integer
+              description: Optional array of subaccount indices. Must match the subscription if provided (same order not required, but same indices).
+        id:
+          oneOf:
+            - type: string
+            - type: integer
+            - type: 'null'
+          description: Optional request identifier for matching responses (string, number, or null per JSON-RPC 2.0)
+    SuccessResponse:
+      type: object
+      required:
+        - jsonrpc
+        - result
+        - usIn
+        - usOut
+        - usDiff
+      properties:
+        jsonrpc:
+          type: string
+          enum: ['2.0']
+          description: JSON-RPC version
+        result:
+          type: object
+          properties:
+            message:
+              type: string
+              description: Success message
+        usIn:
+          type: integer
+          format: int64
+          description: Request received timestamp in milliseconds
+        usOut:
+          type: integer
+          format: int64
+          description: Response sent timestamp in milliseconds
+        usDiff:
+          type: integer
+          format: int64
+          description: Processing time in milliseconds
+        id:
+          oneOf:
+            - type: string
+            - type: integer
+            - type: 'null'
+          description: Request identifier (if provided in request, otherwise null)
+    ErrorResponse:
+      type: object
+      required:
+        - jsonrpc
+        - error
+        - usIn
+        - usOut
+        - usDiff
+      properties:
+        jsonrpc:
+          type: string
+          enum: ['2.0']
+          description: JSON-RPC version
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: integer
+              description: 'JSON-RPC error code: -32700 (Parse error), -32600 (Invalid request), -32602 (Invalid params), -32603 (Internal error), -32001 (Authentication required), -32002 (Already subscribed), -32003 (Max subscription limit reached), -32004 (Not subscribed to channel)'
+            message:
+              type: string
+              description: Error message
+        usIn:
+          type: integer
+          format: int64
+          description: Request received timestamp in milliseconds
+        usOut:
+          type: integer
+          format: int64
+          description: Response sent timestamp in milliseconds
+        usDiff:
+          type: integer
+          format: int64
+          description: Processing time in milliseconds
+        id:
+          oneOf:
+            - type: string
+            - type: integer
+            - type: 'null'
+          description: Request identifier (if provided in request, otherwise null)
+    # Data Structures
+    OrderParams:
+      type: object
+      required:
+        - account
+        - quantity
+        - expiresAt
+        - symbol
+        - subaccountIndex
+        - nonce
+        - price
+        - flags
+        - signature
+        - originator
+        - originatorFee
+      properties:
+        account:
+          type: string
+          description: Ethereum address of the account creating the order
+        clientId:
+          type: string
+          description: Optional client-provided identifier for the order
+        quantity:
+          type: string
+          description: Signed decimal string - positive for long/buy, negative for short/sell
+        expiresAt:
+          type: integer
+          format: int64
+          description: Expiration timestamp in milliseconds
+        symbol:
+          type: string
+          description: Market symbol (e.g., 'BTC', 'ETH', 'SOL')
+        subaccountIndex:
+          type: string
+          description: Subaccount index as string (default '0')
+        nonce:
+          type: integer
+          format: int64
+          description: Unique nonce for this order
+        price:
+          type: string
+          description: Limit price as decimal string
+        flags:
+          $ref: '#/components/schemas/OrderFlags'
+        signature:
+          type: string
+          description: EIP-712 signature of the order (hex string with 0x prefix)
+        originator:
+          type: string
+          description: Ethereum address of the order originator (use zero address if none)
+        originatorFee:
+          type: integer
+          format: int64
+          description: Additional fee for originator in basis points (default 0)
+    OrderFlags:
+      type: object
+      required:
+        - reduceOnly
+        - postOnly
+        - ioc
+      properties:
+        reduceOnly:
+          type: boolean
+          description: Only allow the order to reduce position magnitude
+        postOnly:
+          type: boolean
+          description: Order may only be filled as maker (adds liquidity)
+        ioc:
+          type: boolean
+          description: Immediate-or-cancel - order may only be filled as taker (removes liquidity)
+        selfTradeExpire:
+          type: integer
+          nullable: true
+          description: Optional self-trade prevention mode
+    BookUpdate:
+      type: object
+      required:
+        - type
+        - data
+      properties:
+        type:
+          type: string
+          enum: ['Book Snapshot', 'Book Delta']
+          description: Message type identifier - 'Book Snapshot' for initial data, 'Book Delta' for incremental updates
+        data:
+          $ref: '#/components/schemas/BookData'
+    BookData:
+      type: object
+      required:
+        - feed_id
+        - tick_size
+        - bids
+        - asks
+        - time
+        - sequence_number
+      properties:
+        feed_id:
+          type: string
+          description: Internal feed identifier
+        tick_size:
+          type: string
+          description: Price tick size used for aggregation in UFixed6 format (e.g., "10000" = 0.01)
+        bids:
+          type: array
+          description: |
+            For snapshots: All buy orders sorted by price descending.
+            For deltas: Changed buy orders (quantity 0 means removed).
+          items:
+            $ref: '#/components/schemas/BidOrOffer'
+        asks:
+          type: array
+          description: |
+            For snapshots: All sell orders sorted by price ascending.
+            For deltas: Changed sell orders (quantity 0 means removed).
+          items:
+            $ref: '#/components/schemas/BidOrOffer'
+        time:
+          type: integer
+          format: int64
+          description: Timestamp in milliseconds
+        sequence_number:
+          type: integer
+          format: int64
+          description: Monotonic sequence number for this feed's order updates
+    BidOrOffer:
+      type: object
+      required:
+        - price
+        - quantity
+      properties:
+        price:
+          type: string
+          description: Price level as decimal string
+        quantity:
+          type: string
+          description: Total quantity at this price level as decimal string (0 indicates removal)
+    Candle:
+      type: object
+      required:
+        - type
+        - data
+      properties:
+        type:
+          type: string
+          enum: ['Candle Update']
+          description: Message type identifier
+        data:
+          type: object
+          required:
+            - symbol
+            - open
+            - high
+            - low
+            - close
+            - volume
+            - time
+          properties:
+            symbol:
+              type: string
+              description: Market symbol for this candle
+            open:
+              type: string
+              description: Opening price as decimal string
+            high:
+              type: string
+              description: Highest price during the candle period as decimal string
+            low:
+              type: string
+              description: Lowest price during the candle period as decimal string
+            close:
+              type: string
+              description: Closing price as decimal string
+            volume:
+              type: string
+              description: Total volume traded during the candle period as decimal string
+            time:
+              type: integer
+              format: int64
+              description: Starting timestamp of the candle period in milliseconds
+    Trade:
+      type: object
+      required:
+        - type
+        - data
+      properties:
+        type:
+          type: string
+          enum: ['Trade']
+          description: Message type identifier
+        data:
+          type: object
+          required:
+            - symbol
+            - price
+            - quantity
+            - time
+          properties:
+            symbol:
+              type: string
+              description: Market symbol for this fill
+            price:
+              type: string
+              description: Fill price as decimal string
+            quantity:
+              type: string
+              description: Signed quantity - positive indicates buy, negative indicates sell, as decimal string
+            time:
+              type: integer
+              format: int64
+              description: Timestamp when fill occurred in milliseconds
+    Order:
+      type: object
+      required:
+        - type
+        - data
+      properties:
+        type:
+          type: string
+          enum: ['Order']
+          description: Message type identifier
+        data:
+          type: object
+          required:
+            - account
+            - orderId
+            - clientId
+            - quantity
+            - expiresAt
+            - symbol
+            - subaccountIndex
+            - nonce
+            - price
+            - status
+            - remaining
+            - settled
+          properties:
+            account:
+              type: string
+              description: Ethereum address of the account
+            orderId:
+              type: string
+              description: Unique 64-character hex identifier for this order
+            clientId:
+              type: string
+              description: Client-provided identifier (empty string if not provided)
+            quantity:
+              type: string
+              description: Signed decimal string - positive for long/buy, negative for short/sell
+            expiresAt:
+              type: integer
+              format: int64
+              description: Order expiration timestamp in milliseconds
+            symbol:
+              type: string
+              description: Market symbol
+            subaccountIndex:
+              type: string
+              description: Subaccount index as string
+            nonce:
+              type: integer
+              format: int64
+              description: Order nonce
+            price:
+              type: string
+              description: Limit price as decimal string
+            status:
+              $ref: '#/components/schemas/OrderStatus'
+            remaining:
+              type: string
+              description: Unfilled quantity as unsigned decimal string
+            settled:
+              type: string
+              description: Filled quantity as unsigned decimal string
+            createdAt:
+              type: integer
+              format: int64
+              nullable: true
+              description: Timestamp when order was created in milliseconds (null for new orders not yet processed)
+            updatedAt:
+              type: integer
+              format: int64
+              nullable: true
+              description: Timestamp when order was last updated in milliseconds (null for new orders not yet processed)
+    OrderStatus:
+      type: string
+      enum:
+        - new
+        - open
+        - filled
+        - cancelled
+        - expired
+        - rejected
+      description: 'Order status: new (just submitted), open (active), filled (completely filled), cancelled (user cancelled), expired (past expiration), rejected (validation failed)'
+    Position:
+      type: object
+      required:
+        - type
+        - data
+      properties:
+        type:
+          type: string
+          enum: ['Position']
+          description: Message type identifier
+        data:
+          type: object
+          required:
+            - account
+            - subaccountIndex
+            - symbol
+            - quantity
+            - basis
+            - fees
+            - funding
+            - margin
+            - updatedAt
+          properties:
+            account:
+              type: string
+              description: Ethereum address of the account
+            subaccountIndex:
+              type: string
+              description: Subaccount index as string
+            symbol:
+              type: string
+              description: Market symbol for this position
+            quantity:
+              type: string
+              description: Signed decimal string - positive for long, negative for short
+            basis:
+              type: string
+              description: Signed notional cost basis as decimal string
+            fees:
+              type: string
+              description: Accumulated trade fees as unsigned decimal string
+            funding:
+              type: string
+              description: Accumulated funding fees as signed decimal string
+            margin:
+              type: string
+              description: Collateral amount reserved for this position as unsigned decimal string
+            updatedAt:
+              type: integer
+              format: int64
+              description: Timestamp when position was last updated in milliseconds
+    Balance:
+      type: object
+      required:
+        - type
+        - data
+      properties:
+        type:
+          type: string
+          enum: ['Balance Update']
+          description: Message type identifier
+        data:
+          type: object
+          required:
+            - account
+            - subaccountIndex
+            - balance
+            - updatedAt
+          properties:
+            account:
+              type: string
+              description: Ethereum address of the account
+            subaccountIndex:
+              type: integer
+              description: Subaccount index
+            balance:
+              type: string
+              description: Current account balance as Fixed6 decimal string
+            updatedAt:
+              type: integer
+              format: int64
+              description: Timestamp when balance was last updated in milliseconds
