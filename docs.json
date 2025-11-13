@@ -66,6 +66,10 @@
             ]
           }
         ]
+      },
+      {
+        "tab": "Websockets",
+        "asyncapi": "/websockets/asyncapi.yaml"
       }
     ],
     "global": {
